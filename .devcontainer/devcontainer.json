@@ -69,9 +69,9 @@
         "ultram4rine.sqltools-clickhouse-driver"
     ],
     "hostRequirements": {
-        "cpus": 8,
-        "memory": "32gb",
-        "storage": "128gb"
+        "cpus": 2,
+        "memory": "8gb",
+        "storage": "32gb"
     },
     // Use 'forwardPorts' to make a list of ports inside the container available locally.
     "forwardPorts": [8000, 5432, 6379, 8123, 8234, 9000, 9092, 9440, 9009]
