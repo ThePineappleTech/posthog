@@ -13,7 +13,7 @@ import secrets
 import datetime
 import datetime as dt
 import dataclasses
-from collections.abc import Callable, Generator, Mapping
+from collections.abc import Callable, Generator, Mapping, Sequence
 from contextlib import contextmanager
 from enum import Enum
 from functools import lru_cache, wraps
@@ -308,6 +308,14 @@ def relative_date_parse(
     )[0]
 
 
+def human_list(items: Sequence[str]) -> str:
+    """Join iterable of strings into a human-readable list ("a, b, and c").
+    Uses the Oxford comma only when there are at least 3 items."""
+    if len(items) < 3:
+        return " and ".join(items)
+    return ", ".join(items[:-1]) + f", and {items[-1]}"
+
+
 def get_js_url(request: HttpRequest) -> str:
     """
     As the web app may be loaded from a non-localhost url (e.g. from the worker container calling the web container)
@@ -322,6 +330,7 @@ def get_context_for_template(
     request: HttpRequest,
     context: Optional[dict] = None,
     team_for_public_context: Optional["Team"] = None,
+    template_name: Optional[str] = None,
 ) -> dict:
     if context is None:
         context = {}
@@ -339,17 +348,27 @@ def get_context_for_template(
         context["git_branch"] = get_git_branch()
         # Add vite dev scripts for development only when explicitly using Vite
         if not settings.E2E_TESTING and os.environ.get("POSTHOG_USE_VITE"):
-            context["vite_dev_scripts"] = """
+            # Choose the correct entry point based on template
+            entry_point = "src/index.tsx"
+            if template_name == "exporter.html":
+                entry_point = "src/exporter/index.tsx"
+
+            # Use dynamic host logic like get_js_url
+            vite_host = "localhost:8234"
+            if settings.DEBUG and settings.JS_URL == "http://localhost:8234":
+                vite_host = f"{request.get_host().split(':')[0]}:8234"
+
+            context["vite_dev_scripts"] = f"""
         <script type="module">
-            import RefreshRuntime from 'http://localhost:8234/@react-refresh'
+            import RefreshRuntime from 'http://{vite_host}/@react-refresh'
             RefreshRuntime.injectIntoGlobalHook(window)
-            window.$RefreshReg$ = () => {}
+            window.$RefreshReg$ = () => {{}}
             window.$RefreshSig$ = () => (type) => type
             window.__vite_plugin_react_preamble_installed__ = true
         </script>
         <!-- Vite development server -->
-        <script type="module" src="http://localhost:8234/@vite/client"></script>
-        <script type="module" src="http://localhost:8234/src/index.tsx"></script>"""
+        <script type="module" src="http://{vite_host}/@vite/client"></script>
+        <script type="module" src="http://{vite_host}/{entry_point}"></script>"""
 
     context["js_posthog_ui_host"] = ""
 
@@ -503,7 +522,7 @@ def render_template(
     If team_for_public_context is provided, this means this is a public page such as a shared dashboard.
     """
 
-    context = get_context_for_template(request, context, team_for_public_context)
+    context = get_context_for_template(request, context, team_for_public_context, template_name)
     template = get_template(template_name)
 
     html = template.render(context, request=request)

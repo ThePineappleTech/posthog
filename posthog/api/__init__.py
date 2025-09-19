@@ -1,7 +1,7 @@
 from rest_framework import decorators, exceptions, viewsets
 from rest_framework_extensions.routers import NestedRegistryItem
 
-from posthog.api import data_color_theme, hog_flow, metalytics, my_notifications, project
+from posthog.api import data_color_theme, hog_flow, metalytics, my_notifications, named_query, project
 from posthog.api.batch_imports import BatchImportViewSet
 from posthog.api.csp_reporting import CSPReportingViewSet
 from posthog.api.routing import DefaultRouterPlusPlus
@@ -28,11 +28,11 @@ import products.tasks.backend.api as tasks
 import products.revenue_analytics.backend.api as revenue_analytics
 import products.early_access_features.backend.api as early_access_feature
 import products.data_warehouse.backend.api.fix_hogql as fix_hogql
-from products.llm_analytics.backend.api import LLMProxyViewSet
+from products.llm_analytics.backend.api import DatasetItemViewSet, DatasetViewSet, LLMProxyViewSet
 from products.messaging.backend.api import MessageCategoryViewSet, MessagePreferencesViewSet, MessageTemplatesViewSet
 from products.user_interviews.backend.api import UserInterviewViewSet
 
-from ee.api.vercel import vercel_installation, vercel_product
+from ee.api.vercel import vercel_installation, vercel_product, vercel_resource
 
 from ..heatmaps.heatmaps_api import HeatmapViewSet, LegacyHeatmapViewSet
 from ..session_recordings.session_recording_api import SessionRecordingViewSet
@@ -40,6 +40,7 @@ from ..session_recordings.session_recording_playlist_api import SessionRecording
 from ..taxonomy import property_definition_api
 from . import (
     activity_log,
+    advanced_activity_logs,
     alert,
     annotation,
     app_metrics,
@@ -181,6 +182,12 @@ projects_router.register(
     r"activity_log",
     activity_log.ActivityLogViewSet,
     "project_activity_log",
+    ["project_id"],
+)
+projects_router.register(
+    r"advanced_activity_logs",
+    advanced_activity_logs.AdvancedActivityLogsViewSet,
+    "project_advanced_activity_logs",
     ["project_id"],
 )
 projects_router.register(
@@ -341,6 +348,13 @@ projects_router.register(
     ["project_id"],
 )
 register_grandfathered_environment_nested_viewset(r"query", query.QueryViewSet, "environment_query", ["team_id"])
+
+register_grandfathered_environment_nested_viewset(
+    r"named_query",
+    named_query.NamedQueryViewSet,
+    "environment_named_query",
+    ["team_id"],
+)
 
 # External data resources
 register_grandfathered_environment_nested_viewset(
@@ -513,7 +527,6 @@ register_grandfathered_environment_nested_viewset(
     ["team_id"],
 )
 
-
 register_grandfathered_environment_nested_viewset(r"heatmaps", HeatmapViewSet, "environment_heatmaps", ["team_id"])
 register_grandfathered_environment_nested_viewset(r"sessions", SessionViewSet, "environment_sessions", ["team_id"])
 
@@ -546,10 +559,16 @@ if EE_AVAILABLE:
         r"persons", EnterprisePersonViewSet, "environment_persons", ["team_id"]
     )
     router.register(r"person", LegacyEnterprisePersonViewSet, "persons")
-    router.register(
+    vercel_installations_router = router.register(
         r"vercel/v1/installations",
         vercel_installation.VercelInstallationViewSet,
         "vercel_installations",
+    )
+    vercel_installations_router.register(
+        r"resources",
+        vercel_resource.VercelResourceViewSet,
+        "vercel_installation_resources",
+        ["installation_id"],
     )
     router.register(
         r"vercel/v1/products",
@@ -563,7 +582,6 @@ else:
     )
     register_grandfathered_environment_nested_viewset(r"persons", PersonViewSet, "environment_persons", ["team_id"])
     router.register(r"person", LegacyPersonViewSet, "persons")
-
 
 environment_dashboards_router.register(
     r"sharing",
@@ -656,6 +674,13 @@ environments_router.register(
     r"error_tracking/suppression_rules",
     error_tracking.ErrorTrackingSuppressionRuleViewSet,
     "project_error_tracking_suppression_rule",
+    ["team_id"],
+)
+
+environments_router.register(
+    r"error_tracking/fingerprints",
+    error_tracking.ErrorTrackingFingerprintViewSet,
+    "project_error_tracking_fingerprint",
     ["team_id"],
 )
 
@@ -819,4 +844,18 @@ projects_router.register(
     flag_value.FlagValueViewSet,
     "project_flag_value",
     ["project_id"],
+)
+
+register_grandfathered_environment_nested_viewset(
+    r"datasets",
+    DatasetViewSet,
+    "environment_datasets",
+    ["team_id"],
+)
+
+register_grandfathered_environment_nested_viewset(
+    r"dataset_items",
+    DatasetItemViewSet,
+    "environment_dataset_items",
+    ["team_id"],
 )

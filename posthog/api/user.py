@@ -9,7 +9,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, Optional, cast
 
 from django.conf import settings
-from django.contrib.auth import login, update_session_auth_hash
+from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.http import HttpResponse, JsonResponse
@@ -52,7 +52,7 @@ from posthog.auth import (
 )
 from posthog.constants import PERMITTED_FORUM_DOMAINS
 from posthog.email import is_email_available
-from posthog.event_usage import report_user_logged_in, report_user_updated, report_user_verified_email
+from posthog.event_usage import report_user_updated, report_user_verified_email
 from posthog.middleware import get_impersonated_session_expires_at
 from posthog.models import Dashboard, Team, User, UserScenePersonalisation
 from posthog.models.organization import Organization
@@ -114,6 +114,7 @@ class UserSerializer(serializers.ModelSerializer):
             "anonymize_data",
             "toolbar_mode",
             "has_password",
+            "id",
             "is_staff",
             "is_impersonated",
             "is_impersonated_until",
@@ -143,6 +144,7 @@ class UserSerializer(serializers.ModelSerializer):
             "pending_email",
             "is_email_verified",
             "has_password",
+            "id",
             "is_impersonated",
             "is_impersonated_until",
             "sensitive_session_expires_at",
@@ -405,7 +407,7 @@ class UserViewSet(
     authentication_classes = [SessionAuthentication, PersonalAPIKeyAuthentication]
     permission_classes = [IsAuthenticated, APIScopePermission, UserNoOrgMembershipDeletePermission]
     filter_backends = [DjangoFilterBackend]
-    filterset_fields = ["is_staff"]
+    filterset_fields = ["is_staff", "email"]
     queryset = User.objects.filter(is_active=True)
     lookup_field = "uuid"
 
@@ -475,8 +477,6 @@ class UserViewSet(
         user.save()
         report_user_verified_email(user)
 
-        login(self.request, user, backend="django.contrib.auth.backends.ModelBackend")
-        report_user_logged_in(user)
         return Response({"success": True, "token": token})
 
     @action(
